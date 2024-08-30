@@ -4,35 +4,24 @@
     android:orientation="vertical"
     android:padding="16dp">
 
-    <ScrollView
+    <TextView
+        android:id="@+id/infoCellView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="wrap_content"
+        android:text="Network Info will be displayed here"
+        android:textColor="#000000"
+        android:textSize="16sp" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical" >
+    <TextView
+        android:id="@+id/infoGPS"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="TextView" />
 
-            <TextView
-                android:id="@+id/infoCellView"
-                android:layout_width="match_parent"
-                android:layout_height="324dp"
-                android:text="Network Info will be displayed here"
-                android:textColor="#000000"
-                android:textSize="16sp" />
-
-            <TextView
-                android:id="@+id/infoGPS"
-                android:layout_width="match_parent"
-                android:layout_height="190dp"
-                android:text="TextView" />
-
-            <Button
-                android:id="@+id/closeButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Close" />
-        </LinearLayout>
-    </ScrollView>
+    <Button
+        android:id="@+id/closeButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Close" />
 
 </LinearLayout>
