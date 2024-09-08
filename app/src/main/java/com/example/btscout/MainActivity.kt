@@ -1,163 +1,172 @@
 package com.example.btscout
 
-import android.Manifest
 import android.annotation.SuppressLint
-import android.content.pm.PackageManager
 import android.content.Context
-import android.telephony.*
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.core.app.ActivityCompat
-import android.widget.TextView
-import android.widget.Button
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
-import androidx.annotation.RequiresApi
-import java.util.Date
-import java.text.SimpleDateFormat
-import java.util.Locale
+import android.os.Bundle
+import android.os.Handler
+import android.telephony.*
+import android.widget.*
+import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.work.*
 import com.example.btscout.database.DatabaseHelper
-import com.example.btscout.database.insertCdmaData
-import com.example.btscout.database.insertGsmData
-import com.example.btscout.database.insertLteData
-import com.example.btscout.database.insertWcdmaData
+import com.example.btscout.database.MyWorker
+import com.example.btscout.database.clearGpsAndLteTables
+import com.example.btscout.database.getNumberOfGpsAndLteTables
+import java.text.SimpleDateFormat
+import java.util.*
+import java.util.concurrent.TimeUnit
+import android.content.SharedPreferences
 
 class MainActivity : ComponentActivity() {
-
+    private lateinit var sharedPreferences: SharedPreferences
     private lateinit var infoCellView: TextView
     private lateinit var infoGPS: TextView
+    private lateinit var infoLogs: TextView
+    private lateinit var logSwitch: Switch
     private lateinit var closeButton: Button
+    private lateinit var clearButton: Button
     private lateinit var locationManager: LocationManager
     private lateinit var telephonyManager: TelephonyManager
-    private var lastLocation: Location? = null
     private lateinit var dbHelper: DatabaseHelper
+    private lateinit var handler: Handler
+    private lateinit var runnable: Runnable
+    private val updateInterval: Long = 3000 // 3 seconds interval for updates
+    private val WORK_TAG = "MyWorkerTag"
+
+
+    // Register the permission request launcher
+    private val requestPermissionsLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            if (permissions.all { it.value }) {
+                // All permissions granted, proceed with the app logic
+                proceedWithAppLogic()
+            } else {
+                // Permissions denied, show a message and close the app
+                Toast.makeText(this, "Permissions denied. The app cannot proceed.", Toast.LENGTH_LONG).show()
+                finishAffinity() // Close the app
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main) // Ensure this matches your XML file name
+        setContentView(R.layout.activity_main)
 
-        infoCellView = findViewById(R.id.infoCellView)
-        closeButton = findViewById(R.id.closeButton)
-        infoGPS = findViewById(R.id.infoGPS)
-
-        dbHelper = DatabaseHelper(this)
-
-        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
-
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
-            ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.READ_PHONE_STATE), 1)
-            return
-        }
-
-        telephonyManager = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-
-        getCurrentLocation()
-
-        closeButton.setOnClickListener {
-            finishAffinity() // This will close the app
+        // Check permissions at startup
+        if (!PermissionHelper.checkPermissions(this)) {
+            requestPermissionsLauncher.launch(PermissionHelper.getRequiredPermissions())
+        } else {
+            proceedWithAppLogic()
         }
     }
 
+    private fun proceedWithAppLogic() {
+        infoCellView = findViewById(R.id.infoCellView)
+        closeButton = findViewById(R.id.closeButton)
+        infoGPS = findViewById(R.id.infoGPS)
+        infoLogs = findViewById(R.id.infoLogs)
+        clearButton = findViewById(R.id.clearButton)
+
+        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        telephonyManager = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        dbHelper = DatabaseHelper(this)
+
+        // Initialize SharedPreferences to save the switch state
+        sharedPreferences = getSharedPreferences("AppPrefs", MODE_PRIVATE)
+        // Restore the switch state on app launch
+        logSwitch = findViewById(R.id.logSwitch)
+        logSwitch.isChecked = sharedPreferences.getBoolean("isWorkerRunning", false)
+        // Set listener for switch toggling
+        logSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                startWorker()  // Start the worker when the switch is turned ON
+            } else {
+                stopWorker()   // Stop the worker when the switch is turned OFF
+            }
+            // Save the switch state
+            saveSwitchState(isChecked)
+        }
+
+        closeButton.setOnClickListener { finishAffinity() }
+
+        clearButton.setOnClickListener { showConfirmationDialog() }
+
+        startPeriodicUpdates()
+        getCurrentLocation()
+    }
+
+    private fun startWorker() {
+        // Create the WorkRequest for the Worker
+        val workRequest = OneTimeWorkRequest.Builder(MyWorker::class.java)
+            .addTag(WORK_TAG)  // Add a unique tag to identify the worker
+            .build()
+
+        // Enqueue the work using WorkManager
+        WorkManager.getInstance(this).enqueueUniqueWork(
+            WORK_TAG,
+            ExistingWorkPolicy.KEEP,  // Ensure only one worker runs at a time
+            workRequest
+        )
+    }
+
+    private fun stopWorker() {
+        // Cancel the worker using its unique tag
+        WorkManager.getInstance(this).cancelUniqueWork(WORK_TAG)
+    }
+
+    // Save the switch state to SharedPreferences
+    private fun saveSwitchState(isChecked: Boolean) {
+        sharedPreferences.edit()
+            .putBoolean("isWorkerRunning", isChecked)
+            .apply()
+    }
+
+    private fun startPeriodicUpdates() {
+        handler = Handler(mainLooper)
+        runnable = object : Runnable {
+            override fun run() {
+                getCurrentLocation()
+                handler.postDelayed(this, updateInterval)
+            }
+        }
+        handler.post(runnable)
+    }
+
+    private fun stopPeriodicUpdates() {
+        if (::handler.isInitialized && ::runnable.isInitialized) {
+            handler.removeCallbacks(runnable)
+        }
+    }
+
+    override fun onPause() {
+        stopPeriodicUpdates()
+        super.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        startPeriodicUpdates()
+    }
+
     override fun onDestroy() {
-        dbHelper.saveDatabaseToExternalStorage()
+        stopPeriodicUpdates()
         dbHelper.close()
         super.onDestroy()
     }
 
     @SuppressLint("MissingPermission")
-    private fun getCurrentCellInfo(latitude: Double, longitude: Double) {
-        val allCellInfo = telephonyManager.allCellInfo
-        val connectedCellInfo = allCellInfo.firstOrNull { it.isRegistered }
-
-        if (connectedCellInfo != null) {
-            val info = when (connectedCellInfo) {
-                is CellInfoGsm -> {
-                    val cellSignalStrength = connectedCellInfo.cellSignalStrength
-                    val timeAdvance = cellSignalStrength.timingAdvance
-                    dbHelper.insertGsmData(connectedCellInfo.cellIdentity, cellSignalStrength.dbm, timeAdvance, latitude, longitude)
-                    printGsmDetails(connectedCellInfo.cellIdentity, cellSignalStrength, timeAdvance)
-                }
-                is CellInfoLte -> {
-                    val cellSignalStrength = connectedCellInfo.cellSignalStrength
-                    val timeAdvance = cellSignalStrength.timingAdvance
-                    dbHelper.insertLteData(connectedCellInfo.cellIdentity, cellSignalStrength.dbm, timeAdvance, latitude, longitude)
-                    printLteDetails(connectedCellInfo.cellIdentity, cellSignalStrength, timeAdvance)
-                }
-                is CellInfoCdma -> {
-                    val cellSignalStrength = connectedCellInfo.cellSignalStrength
-                    dbHelper.insertCdmaData(connectedCellInfo.cellIdentity, cellSignalStrength.dbm, latitude, longitude)
-                    printCdmaDetails(connectedCellInfo.cellIdentity, cellSignalStrength)
-                }
-                is CellInfoWcdma -> {
-                    val cellSignalStrength = connectedCellInfo.cellSignalStrength
-                    dbHelper.insertWcdmaData(connectedCellInfo.cellIdentity, cellSignalStrength.dbm, latitude, longitude)
-                    printWcdmaDetails(connectedCellInfo.cellIdentity, cellSignalStrength)
-                }
-                else -> "Unknown cell type or not supported."
-            }
-
-            infoCellView.text = info
-        } else {
-            infoCellView.text = "No connected cell information available."
-        }
-    }
-
-    private fun printGsmDetails(identity: CellIdentityGsm, signal: CellSignalStrengthGsm, timeAdvance: Int): String {
-        return "GSM Cell Details:\n" +
-                "CID: ${identity.cid}\n" +
-                "LAC: ${identity.lac}\n" +
-                "MCC: ${identity.mcc}\n" +
-                "MNC: ${identity.mnc}\n" +
-                "ARFCN: ${identity.arfcn}\n" +  // Added ARFCN
-                "Signal Strength: ${signal.dbm} dBm\n" +
-                "Timing Advance: $timeAdvance\n"
-    }
-
-    private fun printLteDetails(identity: CellIdentityLte, signal: CellSignalStrengthLte, timeAdvance: Int): String {
-        return "LTE Cell Details:\n" +
-                "CI: ${identity.ci}\n" +
-                "PCI: ${identity.pci}\n" +
-                "TAC: ${identity.tac}\n" +
-                "MCC: ${identity.mcc}\n" +
-                "MNC: ${identity.mnc}\n" +
-                "ARFCN: ${identity.earfcn}\n" +  // Added ARFCN
-                "Signal Strength: ${signal.dbm} dBm\n" +
-                "Timing Advance: $timeAdvance\n"
-    }
-
-    private fun printCdmaDetails(identity: CellIdentityCdma, signal: CellSignalStrengthCdma): String {
-        return "CDMA Cell Details:\n" +
-                "Network ID: ${identity.networkId}\n" +
-                "System ID: ${identity.systemId}\n" +
-                "Base Station ID: ${identity.basestationId}\n" +
-                "Longitude: ${identity.longitude}\n" +
-                "Latitude: ${identity.latitude}\n" +
-                "Signal Strength: ${signal.dbm} dBm\n"
-    }
-
-    private fun printWcdmaDetails(identity: CellIdentityWcdma, signal: CellSignalStrengthWcdma): String {
-        return "WCDMA Cell Details:\n" +
-                "CID: ${identity.cid}\n" +
-                "LAC: ${identity.lac}\n" +
-                "MCC: ${identity.mcc}\n" +
-                "MNC: ${identity.mnc}\n" +
-                "ARFCN: ${identity.uarfcn}\n" +  // Added ARFCN
-                "Signal Strength: ${signal.dbm} dBm\n"
-    }
-
     private fun getCurrentLocation() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            return
-        }
-
         val locationListener = object : LocationListener {
             override fun onLocationChanged(location: Location) {
-                onGPSUpdate(location)
+                processNewLocation(location)
             }
 
+            @Deprecated("Deprecated in Java")
             override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
             override fun onProviderEnabled(provider: String) {}
             override fun onProviderDisabled(provider: String) {}
@@ -167,22 +176,85 @@ class MainActivity : ComponentActivity() {
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0L, 0f, locationListener)
     }
 
-    private fun onGPSUpdate(location: Location) {
-        lastLocation?.let { lastLoc ->
-            val distance = location.distanceTo(lastLoc)
-            if (distance < 20) {
-                return
-            }
-        }
-
-        val locationInfo = "GPS Location:\nLatitude: ${location.latitude}\nLongitude: ${location.longitude}\n\n"
+    private fun processNewLocation(location: Location) {
+        val locationInfo = "GPS Location:\nLatitude: ${location.latitude}\nLongitude: ${location.longitude}\n"
         val currentTime = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
 
-        infoGPS.text = locationInfo
-        infoGPS.append(currentTime)
+        infoGPS.text = "$locationInfo$currentTime"
+        infoLogs.text=dbHelper.getNumberOfGpsAndLteTables()
+        displayCellInfo()
+    }
 
-        getCurrentCellInfo(location.latitude, location.longitude)
+    @SuppressLint("MissingPermission")
+    private fun displayCellInfo() {
+        val allCellInfo = telephonyManager.allCellInfo
+        if (allCellInfo.isNullOrEmpty()) {
+            infoCellView.text = "No cell information available."
+            return
+        }
 
-        lastLocation = location
+        val connectedCellInfo = allCellInfo.firstOrNull { it.isRegistered }
+
+        if (connectedCellInfo == null) {
+            infoCellView.text = "No connected cell information available."
+        } else {
+            val info = when (connectedCellInfo) {
+                is CellInfoGsm -> printGsmDetails(connectedCellInfo.cellIdentity, connectedCellInfo.cellSignalStrength)
+                is CellInfoLte -> printLteDetails(connectedCellInfo.cellIdentity, connectedCellInfo.cellSignalStrength)
+                else -> "Unknown cell type or not supported."
+            }
+            infoCellView.text = info
+        }
+    }
+
+    private fun printGsmDetails(identity: CellIdentityGsm, signal: CellSignalStrengthGsm): String {
+        val mcc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) identity.mccString ?: "Unknown" else identity.mcc.toString()
+        val mnc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) identity.mncString ?: "Unknown" else identity.mnc.toString()
+
+        return "GSM Cell Details:\n" +
+                "CID: ${identity.cid}\n" +
+                "LAC: ${identity.lac}\n" +
+                "MCC: $mcc\n" +
+                "MNC: $mnc\n" +
+                "Signal Strength: ${signal.dbm} dBm\n" +
+                "Timing Advance: ${signal.timingAdvance}\n"
+    }
+
+    private fun printLteDetails(identity: CellIdentityLte, signal: CellSignalStrengthLte): String {
+        val mcc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) identity.mccString ?: "Unknown" else identity.mcc.toString()
+        val mnc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) identity.mncString ?: "Unknown" else identity.mnc.toString()
+
+        return "LTE Cell Details:\n" +
+                "CI: ${identity.ci}\n" +
+                "PCI: ${identity.pci}\n" +
+                "MCC: $mcc\n" +
+                "MNC: $mnc\n" +
+                "Signal Strength: ${signal.dbm} dBm\n" +
+                "Timing Advance: ${signal.timingAdvance}\n"
+    }
+
+    private fun clearGsmLteTables() {
+        Thread {
+            dbHelper.clearGpsAndLteTables()
+            runOnUiThread { updateLogStat() }
+        }.start()
+    }
+
+    private fun updateLogStat() {
+        infoLogs.text = dbHelper.getNumberOfGpsAndLteTables()
+    }
+
+    private fun showConfirmationDialog() {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Clear Data")
+        builder.setMessage("Are you sure you want to delete all GPS and LTE data? This action cannot be undone.")
+        builder.setPositiveButton("Yes") { dialog, _ ->
+            clearGsmLteTables()
+            dialog.dismiss()
+        }
+        builder.setNegativeButton("No") { dialog, _ ->
+            dialog.dismiss()
+        }
+        builder.create().show()
     }
 }

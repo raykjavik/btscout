@@ -1,27 +1,64 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:layout_alignWithParentIfMissing="true"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="16dp"
+    android:textAlignment="center">
 
     <TextView
         android:id="@+id/infoCellView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Network Info will be displayed here"
-        android:textColor="#000000"
         android:textSize="16sp" />
 
     <TextView
         android:id="@+id/infoGPS"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="TextView" />
+        android:text="GPS info will be displayed here" />
+
+    <Switch
+        android:id="@+id/logSwitch"
+        android:layout_width="match_parent"
+        android:layout_height="51dp"
+        android:drawableBottom="@drawable/button_border"
+        android:text="Logging"
+		android:textColor="@color/white"
+		android:padding="12dp"
+        android:textAlignment="center" />
+
+    <TextView
+        android:id="@+id/infoLogs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Database info will be displayed here" />
+
+    <Button
+        android:id="@+id/clearButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/button_border"
+        android:drawableBottom="@drawable/button_border"
+        android:padding="12dp"
+        android:text="Clear logs" />
+
+    <TextView
+        android:id="@+id/textView3"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:lines="2"
+        android:text="Download your logs from file system:\n \\Android\\data\\com.example.btscout\\files\\cell_info.db" />
 
     <Button
         android:id="@+id/closeButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/button_border"
+        android:drawableBottom="@drawable/button_border"
+        android:padding="12dp"
         android:text="Close" />
 
 </LinearLayout>

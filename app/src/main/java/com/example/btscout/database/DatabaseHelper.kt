@@ -50,13 +50,11 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     companion object {
         private const val DATABASE_NAME = "cell_info.db"
-        private const val DATABASE_VERSION = 3  // Increment the version for schema changes
+        private const val DATABASE_VERSION = 4  // Increment the version for schema changes
 
         // Table Names
         const val TABLE_GSM = "GSM"
         const val TABLE_LTE = "LTE"
-        const val TABLE_CDMA = "CDMA"
-        const val TABLE_WCDMA = "WCDMA"
 
         // Common Columns
         const val COLUMN_TIMESTAMP = "timestamp"
@@ -71,7 +69,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val COLUMN_ARFCN = "arfcn"  // Add ARFCN column
 
         // Create Table Statements
-        private const val CREATE_TABLE_GSM = (
+        const val CREATE_TABLE_GSM = (
                 "CREATE TABLE $TABLE_GSM (" +
                         "$COLUMN_TIMESTAMP INTEGER PRIMARY KEY," +
                         "$COLUMN_CID TEXT," +
@@ -86,7 +84,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                         ")"
                 )
 
-        private const val CREATE_TABLE_LTE = (
+        const val CREATE_TABLE_LTE = (
                 "CREATE TABLE $TABLE_LTE (" +
                         "$COLUMN_TIMESTAMP INTEGER PRIMARY KEY," +
                         "$COLUMN_CID TEXT," +
@@ -101,49 +99,24 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                         ")"
                 )
 
-        private const val CREATE_TABLE_CDMA = (
-                "CREATE TABLE $TABLE_CDMA (" +
-                        "$COLUMN_TIMESTAMP INTEGER PRIMARY KEY," +
-                        "$COLUMN_CID TEXT," +
-                        "$COLUMN_LAC TEXT," +
-                        "$COLUMN_MCC TEXT," +
-                        "$COLUMN_MNC TEXT," +
-                        "$COLUMN_SIGNAL_STRENGTH INTEGER," +
-                        "$COLUMN_TIMING_ADVANCE INTEGER," +
-                        "$COLUMN_LATITUDE REAL," +
-                        "$COLUMN_LONGITUDE REAL" +
-                        ")"
-                )
 
-        private const val CREATE_TABLE_WCDMA = (
-                "CREATE TABLE $TABLE_WCDMA (" +
-                        "$COLUMN_TIMESTAMP INTEGER PRIMARY KEY," +
-                        "$COLUMN_CID TEXT," +
-                        "$COLUMN_LAC TEXT," +
-                        "$COLUMN_MCC TEXT," +
-                        "$COLUMN_MNC TEXT," +
-                        "$COLUMN_SIGNAL_STRENGTH INTEGER," +
-                        "$COLUMN_LATITUDE REAL," +
-                        "$COLUMN_LONGITUDE REAL," +
-                        "$COLUMN_ARFCN INTEGER" +
-                        ")"
-                )
     }
 
     override fun onCreate(db: SQLiteDatabase?) {
         println("Creating tables")
         db?.execSQL(CREATE_TABLE_GSM)
         db?.execSQL(CREATE_TABLE_LTE)
-        db?.execSQL(CREATE_TABLE_CDMA)
-        db?.execSQL(CREATE_TABLE_WCDMA)
         println("Tables created")
     }
 
     override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
         db?.execSQL("DROP TABLE IF EXISTS $TABLE_GSM")
         db?.execSQL("DROP TABLE IF EXISTS $TABLE_LTE")
-        db?.execSQL("DROP TABLE IF EXISTS $TABLE_CDMA")
-        db?.execSQL("DROP TABLE IF EXISTS $TABLE_WCDMA")
         onCreate(db)
     }
+
 }
+
+
+
+

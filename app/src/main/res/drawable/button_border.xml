@@ -1,0 +1,12 @@
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Transparent background for the button -->
+    <solid android:color="@android:color/transparent" />
+
+    <!-- Define the white border -->
+    <stroke
+        android:width="2dp"
+        android:color="@color/white" />
+
+    <!-- Optional: Round corners for the button -->
+    <corners android:radius="8dp"/>
+</shape>
