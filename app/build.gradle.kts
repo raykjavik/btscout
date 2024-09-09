@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.btscout"
+    namespace = "buresjak.open.btscout"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.btscout"
+        applicationId = "buresjak.open.btscout"
         minSdk = 27
         targetSdk = 34
         versionCode = 1
@@ -27,6 +27,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

@@ -24,7 +24,7 @@
         android:theme="@style/Theme.BTScout"
         tools:targetApi="33">
         <activity
-            android:name=".MainActivity"
+            android:name="buresjak.open.btscout.MainActivity"
             android:exported="true"
             android:theme="@style/Theme.BTScout">
             <intent-filter>
