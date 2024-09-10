@@ -184,6 +184,7 @@ class MainActivity : ComponentActivity() {
                 "MCC: $mcc\n" +
                 "MNC: $mnc\n" +
                 "Signal Strength: ${signal.dbm} dBm\n" +
+                "Arcfn: ${identity.arfcn}\n" +
                 "Timing Advance: ${signal.timingAdvance}\n"
     }
 
@@ -197,6 +198,7 @@ class MainActivity : ComponentActivity() {
                 "MCC: $mcc\n" +
                 "MNC: $mnc\n" +
                 "Signal Strength: ${signal.dbm} dBm\n" +
+                "Earcfn: ${identity.earfcn}\n" +
                 "Timing Advance: ${signal.timingAdvance}\n"
     }
 
